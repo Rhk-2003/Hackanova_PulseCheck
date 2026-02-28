@@ -159,11 +159,9 @@ if st.button("🚨 INITIATE AI SCAN", use_container_width=True, type="primary"):
             img_conf, img_class = test_single_image(image)
             image_threat = img_conf if img_class == 'Damaged' else (1.0 - img_conf)
             
-        # 3. Calculate Overall Threat using 70% Image / 30% Text Weighting
-        if uploaded_file is not None:
-            overall_threat_score = (0.70 * image_threat) + (0.30 * text_conf)
-        else:
-            overall_threat_score = text_conf
+        # 3. Calculate Overall Threat using STRICT 70% Image / 30% Text Weighting
+        # If no image is uploaded, image_threat remains 0.0, acting as a mandatory safety anchor
+        overall_threat_score = (0.70 * image_threat) + (0.30 * text_conf)
         
         if overall_threat_score >= red_threshold:
             threat_level, marker_color, icon_type = "HIGH", "red", "bolt"
@@ -193,6 +191,7 @@ if st.button("🚨 INITIATE AI SCAN", use_container_width=True, type="primary"):
                 'text_conf': text_conf,
                 'img_conf': img_conf,
                 'img_class': img_class,
+                'image_threat': image_threat, # Save this to show in UI
                 'overall_threat_score': overall_threat_score,
                 'threat_level': threat_level,
                 'marker_color': marker_color,
@@ -238,14 +237,15 @@ if st.session_state.latest_scan:
     m1, m2, m3 = st.columns(3)
     
     text_delta_color = "inverse" if res['text_conf'] >= orange_threshold else "normal"
-    m1.metric(label="Text Threat Score", value=f"{res['text_conf']*100:.1f}%", delta="High Risk" if res['text_conf'] >= orange_threshold else "Low Risk", delta_color=text_delta_color)
+    m1.metric(label="Text Threat Score (30%)", value=f"{res['text_conf']*100:.1f}%", delta="High Risk" if res['text_conf'] >= orange_threshold else "Low Risk", delta_color=text_delta_color)
     
+    # Updated UI: Explicitly show 0% if no image is present to show the anchoring effect
     if res['img_class'] != "N/A":
-        m2.metric(label="Image Analysis", value=f"{res['img_conf']*100:.1f}%", delta=res['img_class'], delta_color="inverse" if res['img_class'] == 'Damaged' else "normal")
+        m2.metric(label="Image Analysis (70%)", value=f"{res['img_conf']*100:.1f}%", delta=res['img_class'], delta_color="inverse" if res['img_class'] == 'Damaged' else "normal")
     else:
-        m2.metric(label="Image Analysis", value="N/A", delta="No Image", delta_color="off")
+        m2.metric(label="Image Analysis (70%)", value="0.0%", delta="No Visual Evidence", delta_color="off")
         
-    m3.metric(label="Overall AI Status", value=res['threat_level'], delta=f"Max Threat: {res['overall_threat_score']*100:.1f}%", delta_color="inverse" if res['threat_level'] != "LOW" else "normal")
+    m3.metric(label="Overall AI Status", value=res['threat_level'], delta=f"Weighted Threat: {res['overall_threat_score']*100:.1f}%", delta_color="inverse" if res['threat_level'] != "LOW" else "normal")
 
     st.divider()
     
